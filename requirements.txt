@@ -1,0 +1,4 @@
+Flask
+line-bot-sdk==3.0.0
+python-dotenv
+requests
