@@ -28,8 +28,12 @@ import re
 import requests
 from dotenv import load_dotenv
 import os
+import json
+import random
 
 from flask_cors import CORS
+
+health_info = None
 
 app = Flask(__name__)
 CORS(app)
@@ -283,6 +287,19 @@ def handle_message(event):
                     )
             except:
                 reply_text = "請聯絡管理員"
+                line_bot_api.reply_message_with_http_info(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[TextMessage(text=reply_text)],
+                    )
+                )
+
+        # 處理其他不明訊息
+        msg_list = process_message(event.source.user_id, event.message.text)
+        if len(msg_list) > 0:
+            line_bot_api.reply_message_with_http_info(
+                ReplyMessageRequest(reply_token=event.reply_token, messages=msg_list)
+            )
 
 
 @handler.add(PostbackEvent)
@@ -322,13 +339,13 @@ def handle_postback(event):
                     )
             except:
                 reply_text = "請聯絡管理員"
-            # Confirm registration completion
-            line_bot_api.reply_message_with_http_info(
-                ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[TextMessage(text=reply_text)],
+                # Confirm registration completion
+                line_bot_api.reply_message_with_http_info(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[TextMessage(text=reply_text)],
+                    )
                 )
-            )
         elif data == "incorrect":
             # Reset user information if incorrect
             user_info = {"name": None, "idNumber": None, "tel": None, "step": 0}
@@ -452,12 +469,13 @@ def handle_follow(event):
 
         try:
             profile = line_bot_api.get_profile(event.source.user_id)
+            print(profile.display_name)
             welcometitle = "您好！歡迎使用健康小幫手，您看起來還不是我們會員，請選擇新會員或其他以獲得服務。"
-            if profile.display_name:                
+            if profile.display_name:
                 welcometitle = profile.display_name + welcometitle
 
             msg_list.append(TextMessage(text=welcometitle))
-    
+
             buttons_template = ButtonsTemplate(
                 title="服務選單",
                 text="請點擊以下選項",
@@ -470,9 +488,9 @@ def handle_follow(event):
             template_message = TemplateMessage(
                 alt_text="歡迎新朋友～", template=buttons_template
             )
-    
+
             msg_list.append(template_message)
-            
+
         except LineBotApiError as e:
             print(e.status_code)
 
@@ -484,6 +502,7 @@ def handle_follow(event):
                 )
             )
 
+
 # 取消好友
 @handler.add(UnfollowEvent)
 def handle_unfollow(event):
@@ -491,7 +510,42 @@ def handle_unfollow(event):
     app.logger.info("Got Unfollow event:" + event.source.user_id)
 
 
+# 其他訊息的回應
+def process_message(userid: str, msg: str) -> list:
+    global health_info
+    msg_list = []
+
+    if msg != None and msg != "":
+        if msg in health_info:
+            msg_list.append(TextMessage(text=health_info[msg]))
+        # else:
+        #     # 隨機從health_info內取一個內容
+        #     random_key, random_value = random.choice(list(health_info.items()))
+        #     msg_list.append(TextMessage(text=random_value))
+
+    return msg_list
+
+
+# 讀取健康資訊
+def load_health_info(config_name: str):
+    global health_info
+
+    try:
+        fh = open(config_name, "rt")
+    except:
+        print(f"'{config_name}' not found")
+        exit()
+
+    filedata = fh.read()
+    health_info = json.loads(filedata)
+
+    fh.close()
+
+
 def main():
+
+    load_health_info("bot_health_info.json")
+
     host_ip = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", 5000))  # 默認使用 5000，但優先使用環境變數 PORT
 
