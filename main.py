@@ -8,6 +8,8 @@ from linebot.v3.messaging import (
     ReplyMessageRequest,
     MessageAction,
     TextMessage,
+    FlexMessage,
+    FlexContainer,    
     TemplateMessage,
     ButtonsTemplate,
     PostbackAction,
@@ -27,6 +29,7 @@ from linebot.exceptions import LineBotApiError
 import re
 import requests
 from dotenv import load_dotenv
+from typing import Tuple
 import os
 import json
 import random
@@ -77,6 +80,86 @@ def create_operation_options():
         alt_text="請問你要進行什麼操作？", template=buttons_template
     )
     return template_message
+
+
+# 產生進度條
+def progress_bar(title: str, msg: str, current: int, max: int) -> str:
+    # 計算進度條的長度
+    progress = int(float(current) / float(max) * 100)
+    if progress > 100:
+        progress = 100
+
+    # 定義 Flex Message 的 JSON 格式
+    data = {
+        "type": "carousel",
+        "contents": [
+            {
+                "type": "bubble",
+                "size": "kilo",
+                "header": {
+                    "type": "box",
+                    "layout": "vertical",
+                    "backgroundColor": "#27ACB2",
+                    "paddingTop": "19px",
+                    "paddingAll": "12px",
+                    "paddingBottom": "16px",
+                    "contents": [
+                        {
+                            "type": "text",
+                            "text": title,
+                            "color": "#FFFFFF",
+                            "size": "md",
+                            "align": "start",
+                            "gravity": "center",
+                        },
+                        {
+                            "type": "text",
+                            "text": str(current) + "/" + str(max),
+                            "color": "#ffffff",
+                            "align": "start",
+                            "size": "xs",
+                            "gravity": "center",
+                            "margin": "lg",
+                        },
+                        {
+                            "type": "box",
+                            "layout": "vertical",
+                            "contents": [
+                                {
+                                    "type": "box",
+                                    "layout": "vertical",
+                                    "contents": [{"type": "filler"}],
+                                    "width": str(progress) + "%",
+                                    "backgroundColor": "#0D8186",
+                                    "height": "8px",
+                                }
+                            ],
+                            "backgroundColor": "#9FD8E3A0",
+                            "height": "8px",
+                            "margin": "sm",
+                        },
+                    ],
+                },
+                "body": {
+                    "type": "box",
+                    "layout": "vertical",
+                    "flex": 1,
+                    "contents": [
+                        {
+                            "type": "text",
+                            "text": msg,
+                            "color": "#8C8C8C",
+                            "size": "sm",
+                            "wrap": True,
+                        }
+                    ],
+                },
+                "styles": {"footer": {"separator": False}},
+            }
+        ],
+    }
+
+    return data
 
 
 # 主動推送訊息給使用者
@@ -205,10 +288,7 @@ def createUserInfo(userid: str):
 
 
 # 根據前一次的操作，分派訊息到對應的處理流程
-from typing import Tuple
-
-
-def dispatch_type(user_id: str, message: str, user_info) -> Tuple[list, bool]:
+def dispatch_type(user_id: str, message: str, user_info) -> tuple[list, bool]:
     msg_list = []
     push_message = False
 
@@ -234,8 +314,16 @@ def dispatch_type(user_id: str, message: str, user_info) -> Tuple[list, bool]:
             data = response.json()
             health_measurement = data.get("healthMeasurement")  # 使用 .get() 確保鍵存在
             if response.status_code == 200:
+
+                flex = progress_bar("集點券", "目前集點進度", health_measurement, 15)
+                msg_list.append(
+                    FlexMessage(
+                        alt_text="hello", contents=FlexContainer.from_dict(flex)
+                    )
+                )
+
                 if health_measurement < 15:
-                    reply_text = f"集點完成，目前測量次數為{health_measurement}，加油!!"
+                    reply_text = f"集點成功，加油!!"
                 if health_measurement == 15:
                     reply_text = f"集滿囉!!!可以拿給志工確認換禮物囉~"
                 if health_measurement > 15:
