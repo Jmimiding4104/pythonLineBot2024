@@ -29,7 +29,6 @@ from linebot.exceptions import LineBotApiError
 import re
 import requests
 from dotenv import load_dotenv
-from typing import Tuple
 import os
 import json
 import random
@@ -687,7 +686,7 @@ def load_health_info(config_name: str):
     global health_info
 
     try:
-        fh = open(config_name, "rt")
+        fh = open(config_name, "rt", encoding="utf-8")
     except:
         print(f"'{config_name}' not found")
         exit()
