@@ -1,6 +1,6 @@
 Flask
 flask-cors
-line-bot-sdk==3.0.0
+line-bot-sdk
 python-dotenv
 requests
 pymongo

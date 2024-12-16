@@ -9,7 +9,7 @@ from linebot.v3.messaging import (
     MessageAction,
     TextMessage,
     FlexMessage,
-    FlexContainer,    
+    FlexContainer,
     TemplateMessage,
     ButtonsTemplate,
     PostbackAction,
@@ -245,7 +245,8 @@ def handle_message(event):
         db.insert_data(user_id, user_info)
 
     push_message = False
-    msg_list, push_message = dispatch_type(user_id, event.message.text, user_info)
+    msg_list, push_message = dispatch_type(
+        user_id, event.message.text, user_info)
 
     if len(msg_list) <= 0:
         if user_info["register"] == False:
@@ -253,7 +254,8 @@ def handle_message(event):
             return
         else:
             # 處理其他不明訊息
-            msg_list = process_message(event.source.user_id, event.message.text)
+            msg_list = process_message(
+                event.source.user_id, event.message.text)
 
     if len(msg_list) > 0:
         with ApiClient(configuration) as api_client:
@@ -311,7 +313,8 @@ def dispatch_type(user_id: str, message: str, user_info) -> tuple[list, bool]:
             )
             print(response.status_code)
             data = response.json()
-            health_measurement = data.get("healthMeasurement")  # 使用 .get() 確保鍵存在
+            health_measurement = data.get(
+                "healthMeasurement")  # 使用 .get() 確保鍵存在
             if response.status_code == 200:
 
                 flex = progress_bar("集點券", "目前集點進度", health_measurement, 15)
@@ -331,7 +334,9 @@ def dispatch_type(user_id: str, message: str, user_info) -> tuple[list, bool]:
             else:
                 reply_text = "集點失敗！請稍後嘗試!"
                 msg_list.append(TextMessage(text=reply_text))
-
+        elif message == "所有集點":
+            msg_list.append(create_operation_options())
+            push_message = True
     else:
 
         if user_info["steptype"] == "連結LINE集點":
@@ -423,7 +428,25 @@ def dispatch_type(user_id: str, message: str, user_info) -> tuple[list, bool]:
                             user_info["step"] = 0  # 重設步驟為0
                             user_info["errcount"] = 0
                             db.update_data(user_id, user_info)
-                            print("send_operation_options")
+                            print(user_id, user_info)
+                            
+                            idNumber = user_info['idNumber']
+                            print(idNumber)
+                            lineId = user_id
+
+                            try:
+                                response = requests.post(
+                                    url="https://linebotapi-tgkg.onrender.com/linkLineID/",
+                                    json={"idNumber": idNumber, "lineId": lineId},
+                                )
+                                if response.status_code == 200:
+                                    reply_text = "連結成功"
+                                else:
+                                    reply_text = "重複連結或錯誤，請確認!"
+                            except Exception as e:
+                                print(f"Error during request: {e}")
+                                reply_text = "請聯絡管理員"
+
                             msg_list.append(create_operation_options())
                             push_message = True
                         else:
@@ -444,6 +467,7 @@ def dispatch_type(user_id: str, message: str, user_info) -> tuple[list, bool]:
 
 @handler.add(PostbackEvent)
 def handle_postback(event):
+    msg_list = []
 
     qdata = db.query_data(event.source.user_id)
     if qdata is not None:
@@ -455,7 +479,7 @@ def handle_postback(event):
 
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
-
+        
         tk = event.reply_token
         data = event.postback.data
 
@@ -548,14 +572,26 @@ def handle_postback(event):
         elif data == "monitor":
             response = requests.put(
                 url="https://linebotapi-tgkg.onrender.com/add/healthMeasurement",
-                json={"idNumber": user_info["idNumber"]},  # 傳遞的 JSON 資料
+                json={"lineId": user_info["user_id"]},  # 傳遞的 JSON 資料
             )
+            
+            data = response.json()
+            health_measurement = data.get("healthMeasurement")
+            
             if response.status_code == 200:
+                flex = progress_bar("量血壓次數", "目前集點進度", health_measurement, 15)
+                msg_list.append(
+                    FlexMessage(
+                        alt_text="hello", contents=FlexContainer.from_dict(flex)
+                    )
+                )
+
                 reply_text = "集點完成"
+                msg_list.append(TextMessage(text=reply_text))
                 line_bot_api.reply_message_with_http_info(
                     ReplyMessageRequest(
                         reply_token=event.reply_token,
-                        messages=[TextMessage(text=reply_text)],
+                        messages=msg_list,
                     )
                 )
                 send_other_operation_options(line_bot_api, user_info["user_id"])
@@ -570,14 +606,27 @@ def handle_postback(event):
         elif data == "educate":
             response = requests.put(
                 url="https://linebotapi-tgkg.onrender.com/add/healthEducation",
-                json={"idNumber": user_info["idNumber"]},  # 傳遞的 JSON 資料
+                json={"lineId": user_info["user_id"]},  # 傳遞的 JSON 資料
             )
+            
+            data = response.json()
+            health_education = data.get("healthEducation")
+            
             if response.status_code == 200:
+                
+                flex = progress_bar("AI衛教次數", "目前集點進度", health_education, 2)
+                msg_list.append(
+                    FlexMessage(
+                        alt_text="hello", contents=FlexContainer.from_dict(flex)
+                    )
+                )
+                
                 reply_text = "集點完成"
+                msg_list.append(TextMessage(text=reply_text))
                 line_bot_api.reply_message_with_http_info(
                     ReplyMessageRequest(
                         reply_token=event.reply_token,
-                        messages=[TextMessage(text=reply_text)],
+                        messages=msg_list,
                     )
                 )
             else:
@@ -592,14 +641,26 @@ def handle_postback(event):
         elif data == "exercise":
             response = requests.put(
                 url="https://linebotapi-tgkg.onrender.com/add/exercise",
-                json={"idNumber": user_info["idNumber"]},  # 傳遞的 JSON 資料
+                json={"lineId": user_info["user_id"]},  # 傳遞的 JSON 資料
             )
+            
+            data = response.json()
+            exercise = data.get("exercise")
+            
             if response.status_code == 200:
+                flex = progress_bar("運動次數", "目前集點進度", exercise, 6)
+                msg_list.append(
+                    FlexMessage(
+                        alt_text="hello", contents=FlexContainer.from_dict(flex)
+                    )
+                )
+
                 reply_text = "集點完成"
+                msg_list.append(TextMessage(text=reply_text))
                 line_bot_api.reply_message_with_http_info(
                     ReplyMessageRequest(
                         reply_token=event.reply_token,
-                        messages=[TextMessage(text=reply_text)],
+                        messages=msg_list,
                     )
                 )
             else:
