@@ -337,6 +337,11 @@ def dispatch_type(user_id: str, message: str, user_info) -> tuple[list, bool]:
         elif message == "所有集點":
             msg_list.append(create_operation_options())
             push_message = True
+        elif message == "登入":
+            user_info["step"] = 1
+            user_info["steptype"] = "登入"
+            reply_text = "請輸入身分證字號"
+            msg_list.append(TextMessage(text=reply_text))
     else:
 
         if user_info["steptype"] == "連結LINE集點":
@@ -431,7 +436,6 @@ def dispatch_type(user_id: str, message: str, user_info) -> tuple[list, bool]:
                             print(user_id, user_info)
                             
                             idNumber = user_info['idNumber']
-                            print(idNumber)
                             lineId = user_id
 
                             try:
@@ -461,7 +465,33 @@ def dispatch_type(user_id: str, message: str, user_info) -> tuple[list, bool]:
                     db.update_data(user_id, user_info)
                     reply_text = "登入步驟錯誤或身分證字號格式錯誤"
                     msg_list.append(TextMessage(text=reply_text))
-
+        elif user_info["steptype"] == "登入":
+            if check_id_number(message):
+                idNumber = message
+                lineId = user_id
+                print(idNumber,lineId)
+                try:
+                    response = requests.post(
+                        url="https://linebotapi-tgkg.onrender.com/linkLineID/",
+                        json={"idNumber": idNumber, "lineId": lineId},
+                    )
+                    data = response.json()
+                    response_message = data.get("detail")
+                    print(response.status_code)
+                    if response.status_code == 200 :
+                        reply_text = "連結成功"
+                    elif response.status_code == 400 :
+                        reply_text = response_message
+                    else:
+                        reply_text = "連結失敗!!請聯絡管理員!"
+                        
+                    msg_list.append(TextMessage(text=reply_text))
+                except Exception as e:
+                    print(f"Error during request: {e}")
+                    reply_text = "請聯絡管理員"
+            else:
+                reply_text = "請聯絡管理員"
+            
     return msg_list, push_message
 
 
@@ -561,8 +591,19 @@ def handle_postback(event):
             user_info["step"] = 0
             user_info["errcount"] = 0
             db.update_data(event.source.user_id, user_info)
-
-            reply_text = "登出成功"
+            
+            try:
+                response = requests.delete(
+                    url="https://linebotapi-tgkg.onrender.com/logout/",
+                    json={"lineId": user_info["user_id"]},
+                )
+                if response.status_code == 200:
+                    reply_text = "登出成功"
+                else:
+                    reply_text = "請重試"
+            except Exception as e:
+                    print(f"Error during request: {e}")
+                    reply_text = "請聯絡管理員"
             line_bot_api.reply_message_with_http_info(
                 ReplyMessageRequest(
                     reply_token=event.reply_token,
