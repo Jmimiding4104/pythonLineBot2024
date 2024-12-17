@@ -1,3 +1,4 @@
+'''
 """
 這是一個用來存取資料的模組
 如果沒有連到資料庫，會先將資料存到記憶體中
@@ -80,3 +81,128 @@ def main():
 if __name__ == "__main__":
     main()
 
+'''
+
+
+
+
+
+"""
+這是一個用來存取資料的模組
+如果沒有連到資料庫，會先將資料存到記憶體中
+存到記憶體的資料會在程式結束後消失
+
+環境變數沒有 DB 的設定時，會預設將資料存到記憶體中
+"""
+
+import os
+from dotenv import load_dotenv
+from pymongo import MongoClient
+from pymongo.errors import ConnectionFailure
+
+# --- 載入環境變數 ---
+load_dotenv()
+
+# --- 全域變數 ---
+collection = None  # MongoDB 集合
+user_map = {}      # 記憶體儲存用的字典
+
+# --- 初始化資料庫 ---
+def init_db():
+    """
+    初始化資料庫，根據環境變數 ENABLE_DB 決定是否啟用 MongoDB
+    """
+    global collection
+    enable_db = os.getenv("ENABLE_DB", "false").lower() == "true"
+
+    if enable_db:
+        try:
+            db_host = os.getenv("DBHOST")
+            db_name = os.getenv("dbName")
+            collection_name = os.getenv("collectionName")
+
+            if db_host and db_name and collection_name:
+                client = MongoClient(db_host)
+                database = client[db_name]
+                collection = database[collection_name]
+                print("成功連接到 MongoDB 資料庫")
+            else:
+                print("MongoDB 配置不完整，改用記憶體儲存")
+        except ConnectionFailure as e:
+            print(f"MongoDB 連接失敗: {e}")
+            collection = None
+    else:
+        print("未啟用 MongoDB，使用記憶體儲存")
+
+# --- 插入資料 ---
+def insert_data(userID: str, data: dict):
+    """
+    插入資料到 MongoDB 或記憶體
+    """
+    global collection
+    if collection:
+        collection.insert_one(data)
+    else:
+        user_map[userID] = data
+
+# --- 查詢資料 ---
+def query_data(userID: str):
+    """
+    根據 userID 查詢資料，從 MongoDB 或記憶體中取得
+    """
+    global collection
+    if collection:
+        result = collection.find_one({"user_id": userID})
+        return result
+    else:
+        return user_map.get(userID, None)
+
+# --- 更新資料 ---
+def update_data(userID: str, data: dict):
+    """
+    更新資料到 MongoDB 或記憶體
+    """
+    global collection
+    if collection:
+        collection.update_one({"user_id": userID}, {"$set": data})
+    else:
+        user_map[userID] = data
+
+# --- 刪除資料 ---
+def delete_data(userID: str):
+    """
+    刪除指定 userID 的資料，從 MongoDB 或記憶體中移除
+    """
+    global collection
+    if collection:
+        collection.delete_one({"user_id": userID})
+    else:
+        user_map.pop(userID, None)
+
+# --- 測試函式 ---
+def main():
+    """
+    測試用的主函式
+    """
+    init_db()  # 初始化資料庫
+
+    # 測試用戶資料
+    test_user_id = "12345"
+    test_data = {"user_id": test_user_id, "name": "John Doe", "step": 1}
+
+    print("\n--- 插入資料 ---")
+    insert_data(test_user_id, test_data)
+    print(f"資料已插入: {query_data(test_user_id)}")
+
+    print("\n--- 更新資料 ---")
+    updated_data = {"name": "Jane Doe", "step": 2}
+    update_data(test_user_id, updated_data)
+    print(f"資料已更新: {query_data(test_user_id)}")
+
+    print("\n--- 刪除資料 ---")
+    delete_data(test_user_id)
+    print(f"資料已刪除: {query_data(test_user_id)}")
+
+if __name__ == "__main__":
+    main()
+    
