@@ -63,6 +63,10 @@ secret = os.getenv("SECRET")
 configuration = Configuration(access_token=access_token)
 handler = WebhookHandler(secret)
 
+BASE_URL = "https://linebotapi-tgkg.onrender.com"
+
+def build_url(path: str) -> str:
+    return f"{BASE_URL}{path}"
 
 # 建立操作提示選項
 def create_operation_options():
@@ -229,6 +233,18 @@ def check_id_number(idNumber) -> bool:
 def check_tel(tel) -> bool:
     return re.match(r"\d{10}", tel)
 
+def check_member(lineId) -> bool:
+    url = build_url("/searchLineID/")
+    try:
+        response = requests.post(
+            url,
+            json={"lineId": lineId},
+        )
+        return response.status_code == 200
+    except Exception as e:
+        print(f"Error during request: {e}")
+        return False
+
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
@@ -301,14 +317,15 @@ def dispatch_type(user_id: str, message: str, user_info) -> tuple[list, bool]:
             user_info["steptype"] = "新會員"
             db.update_data(user_id, user_info)
             msg_list.append(TextMessage(text="請輸入姓名"))
-        elif message == "連結LINE集點" or "登入":
+        elif message == "連結LINE集點" or message == "登入":
             user_info["step"] = 1
             user_info["steptype"] = "連結LINEID"
             db.update_data(user_id, user_info)
             msg_list.append(TextMessage(text="請輸入身分證字號"))
         elif message == "集點":
+            url = build_url("/add/healthMeasurement")
             response = requests.put(
-                url="https://linebotapi-tgkg.onrender.com/add/healthMeasurement",
+                url,
                 json={"lineId": user_info["user_id"]},  # 傳遞的 JSON 資料
             )
             print(response.status_code)
@@ -338,7 +355,6 @@ def dispatch_type(user_id: str, message: str, user_info) -> tuple[list, bool]:
             msg_list.append(create_operation_options())
             push_message = True
         elif message == "登入":
-            user_info["step"] = 1
             user_info["steptype"] = "登入"
             reply_text = "請輸入身分證字號"
             msg_list.append(TextMessage(text=reply_text))
@@ -350,8 +366,9 @@ def dispatch_type(user_id: str, message: str, user_info) -> tuple[list, bool]:
 
             if check_id_number(idNumber):
                 try:
+                    url = build_url("/linkLineID/")
                     response = requests.post(
-                        url="https://linebotapi-tgkg.onrender.com/linkLineID/",
+                        url,
                         json={"idNumber": idNumber, "lineId": lineId},
                     )
                     data = response.json()
@@ -426,8 +443,9 @@ def dispatch_type(user_id: str, message: str, user_info) -> tuple[list, bool]:
                 if check_id_number(message):
                     user_info["idNumber"] = message
                     try:
+                        url = build_url("/search/")
                         response = requests.get(
-                            url="https://linebotapi-tgkg.onrender.com/search/",
+                            url,
                             json={"idNumber": user_info["idNumber"]},
                         )
                         print(response, user_info["idNumber"])
@@ -443,8 +461,9 @@ def dispatch_type(user_id: str, message: str, user_info) -> tuple[list, bool]:
                             lineId = user_id
 
                             try:
+                                url = build_url("/linkLineID/")
                                 response = requests.post(
-                                    url="https://linebotapi-tgkg.onrender.com/linkLineID/",
+                                    url,
                                     json={"idNumber": idNumber, "lineId": lineId},
                                 )
                                 if response.status_code == 200:
@@ -493,8 +512,9 @@ def handle_postback(event):
 
         if data == "correct":
             try:
+                url = build_url("/add_user/")
                 response = requests.post(
-                    url="https://linebotapi-tgkg.onrender.com/add_user/",
+                    url,
                     json={
                         "name": user_info["name"],
                         "idNumber": user_info["idNumber"],
@@ -571,8 +591,9 @@ def handle_postback(event):
             db.update_data(event.source.user_id, user_info)
             
             try:
+                url = build_url("/logout/")
                 response = requests.delete(
-                    url="https://linebotapi-tgkg.onrender.com/logout/",
+                    url,
                     json={"lineId": user_info["user_id"]},
                 )
                 if response.status_code == 200:
@@ -589,8 +610,9 @@ def handle_postback(event):
                 )
             )
         elif data == "monitor":
+            url = build_url("/add/healthMeasurement")
             response = requests.put(
-                url="https://linebotapi-tgkg.onrender.com/add/healthMeasurement",
+                url,
                 json={"lineId": user_info["user_id"]},  # 傳遞的 JSON 資料
             )
             
@@ -623,8 +645,9 @@ def handle_postback(event):
                     )
                 )
         elif data == "educate":
+            url = build_url("/add/healthEducation")
             response = requests.put(
-                url="https://linebotapi-tgkg.onrender.com/add/healthEducation",
+                url,
                 json={"lineId": user_info["user_id"]},  # 傳遞的 JSON 資料
             )
             
@@ -658,8 +681,9 @@ def handle_postback(event):
                 )
             send_other_operation_options(line_bot_api, user_info["user_id"])
         elif data == "exercise":
+            url = build_url("/add/exercise")
             response = requests.put(
-                url="https://linebotapi-tgkg.onrender.com/add/exercise",
+                url,
                 json={"lineId": user_info["user_id"]},  # 傳遞的 JSON 資料
             )
             
