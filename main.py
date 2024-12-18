@@ -1,4 +1,4 @@
-'''S
+'''
 from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -945,5 +945,5 @@ def main():
 if __name__ == "__main__":
     import uvicorn
     main()
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 10000)))
     
