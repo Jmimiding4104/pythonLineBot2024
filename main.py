@@ -85,84 +85,250 @@ def create_operation_options():
     return template_message
 
 
-# 產生進度條
-def progress_bar(title: str, msg: str, current: int, max: int) -> str:
+# 計算顏色變暗
+def darken_color(color: str, factor: float) -> str:
+    if factor < 0 or factor > 1:
+        raise ValueError("Factor must be between 0 and 1")
+    r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+    return f"#{int(r * factor):02x}{int(g * factor):02x}{int(b * factor):02x}"
+
+
+# 計算顏色變亮
+def lighten_color(color: str, factor: float) -> str:
+    if factor < 0 or factor > 1:
+        raise ValueError("Factor must be between 0 and 1")
+    r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+    return f"#{int(r + (255 - r) * factor):02x}{int(g + (255 - g) * factor):02x}{int(b + (255 - b) * factor):02x}"
+
+
+# 建立裝進度條的Bubble
+# 參數不能填錯或少填，FlexContainer底層會報錯
+# 參數請參考呼叫的progress_bar_ex
+def create_bubble(size: str, title: str, msg: str, current: int, max: int, bgcolor: str) -> dict:
+
     # 計算進度條的長度
     progress = int(float(current) / float(max) * 100)
     if progress > 100:
         progress = 100
 
-    # 定義 Flex Message 的 JSON 格式
+    # 進度條的顏色需要根據背景色來調整
+    dcol = darken_color(bgcolor, 0.75)
+    lcol = lighten_color(bgcolor, 0.3)
+
+    bubble = {
+        "type": "bubble",
+        "size": size,
+        "header": {
+            "type": "box",
+            "layout": "vertical",
+            "backgroundColor": bgcolor,
+            "paddingTop": "19px",
+            "paddingAll": "12px",
+            "paddingBottom": "16px",
+            "contents": [
+                {
+                    "type": "text",
+                    "text": title,
+                    "color": "#FFFFFF",
+                    "size": "md",
+                    "align": "start",
+                    "gravity": "center",
+                },
+                {
+                    "type": "text",
+                    "text": str(current) + "/" + str(max),
+                    "color": "#ffffff",
+                    "align": "start",
+                    "size": "xs",
+                    "gravity": "center",
+                    "margin": "lg",
+                },
+                {
+                    "type": "box",
+                    "layout": "vertical",
+                    "contents": [
+                        {
+                            "type": "box",
+                            "layout": "vertical",
+                            "contents": [{"type": "filler"}],
+                            "width": str(progress) + "%",
+                            "backgroundColor": dcol,  # "#0D8186",
+                            "height": "9px",
+                        }
+                    ],
+                    "backgroundColor": lcol,  # "#9FD8E3A0",
+                    "height": "9px",
+                    "margin": "sm",
+                },
+            ],
+        },
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "flex": 1,
+            "contents": [
+                {
+                    "type": "text",
+                    "text": msg,
+                    "color": "#8C8C8C",
+                    "size": "sm",
+                    "wrap": True,
+                }
+            ],
+        },
+        "styles": {"footer": {"separator": False}},
+    }
+
+    return bubble
+
+
+# 可以顯示多個進度條
+# data 是一個 list 內容為 dict，的格式範例如下：
+#   [{"title": "抬頭", "msg": "顯示的文字", "current": 點數, "max": 最大點數, "color": "#A75CB2", }, ...]
+# size_idx: int, 代表進度條的尺寸，0: nano, 1: micro, 2: deca, 3: hecto, 4: kilo, 5: mega, 6: giga
+def progress_bar_ex(data: list, size_idx=2) -> str:
+
+    # 支援的尺寸種類，但是全部都必須設一樣大
+    size_tab = ["nano", "micro", "deca", "hecto", "kilo", "mega", "giga"]
+    if size_idx < 0:
+        size_idx = 0
+    elif size_idx > 6:
+        size_idx = 6
+
+    # 定義 Flex Message 的 DICT 格式
+    carousel_data = {
+        "type": "carousel",
+        "contents": [],
+    }
+
+    for i in range(len(data)):
+        carousel_data["contents"].append(
+            create_bubble(
+                size_tab[size_idx],
+                data[i]["title"],
+                data[i]["msg"],
+                data[i]["current"],
+                data[i]["max"],
+                data[i]["color"],
+            )
+        )
+
+    return carousel_data
+
+
+# 產生進度條
+def progress_bar(title: str, msg: str, current: int, max: int) -> str:
+
+    # 定義 Flex Message 的 DICT 格式
     data = {
+        "type": "carousel",
+        "contents": [create_bubble("kilo", title, msg, current, max, "#27ACB2")],
+    }
+
+    return data
+
+
+# 產生評分星星 預設最多5顆星
+def review_star(rating: float) -> dict:
+    rating = round(rating, 1)
+    rating = int(rating)
+    full_star = (rating * 2) // 2
+
+    star_data = {"type": "box", "layout": "baseline", "contents": []}
+
+    for i in range(5):
+        if i < full_star:
+            star_data["contents"].append(
+                {
+                    "type": "icon",
+                    "size": "xs",
+                    "url": "https://developers-resource.landpress.line.me/fx/img/review_gold_star_28.png",
+                }
+            )
+        else:
+            star_data["contents"].append(
+                {
+                    "type": "icon",
+                    "size": "xs",
+                    "url": "https://developers-resource.landpress.line.me/fx/img/review_gray_star_28.png",
+                }
+            )
+
+    star_data["contents"].append(
+        {
+            "type": "text",
+            "text": str(rating) + ".0",
+            "size": "xs",
+            "color": "#8c8c8c",
+            "margin": "md",
+            "flex": 0,
+        }
+    )
+    return star_data
+
+
+# 產生圖片版的輪播頁面，只實做單頁
+# 理論上是可以改成圖片版的進度條(把星星改成色塊就變進度條了)
+# 知道參數也可以改成有選項的對話盒
+def image_carousel(title: str, msg: str, image: str) -> dict:
+
+    flex_data = {
         "type": "carousel",
         "contents": [
             {
                 "type": "bubble",
-                "size": "kilo",
-                "header": {
+                "size": "hecto",
+                "hero": {
+                    "type": "image",
+                    # "url": "https://developers-resource.landpress.line.me/fx/clip/clip10.jpg",
+                    "url": image,
+                    "size": "full",
+                    "aspectMode": "cover",
+                    "aspectRatio": "320:213",
+                },
+                "body": {
                     "type": "box",
                     "layout": "vertical",
-                    "backgroundColor": "#27ACB2",
-                    "paddingTop": "19px",
-                    "paddingAll": "12px",
-                    "paddingBottom": "16px",
                     "contents": [
                         {
                             "type": "text",
                             "text": title,
-                            "color": "#FFFFFF",
-                            "size": "md",
-                            "align": "start",
-                            "gravity": "center",
+                            "weight": "bold",
+                            "size": "sm",
+                            "wrap": True,
                         },
-                        {
-                            "type": "text",
-                            "text": str(current) + "/" + str(max),
-                            "color": "#ffffff",
-                            "align": "start",
-                            "size": "xs",
-                            "gravity": "center",
-                            "margin": "lg",
-                        },
+                        # 星星評分
+                        review_star(1.0),
                         {
                             "type": "box",
                             "layout": "vertical",
                             "contents": [
                                 {
                                     "type": "box",
-                                    "layout": "vertical",
-                                    "contents": [{"type": "filler"}],
-                                    "width": str(progress) + "%",
-                                    "backgroundColor": "#0D8186",
-                                    "height": "8px",
+                                    "layout": "baseline",
+                                    "spacing": "sm",
+                                    "contents": [
+                                        {
+                                            "type": "text",
+                                            "text": msg,
+                                            "wrap": True,
+                                            "color": "#8c8c8c",
+                                            "size": "xs",
+                                            "flex": 5,
+                                        }
+                                    ],
                                 }
                             ],
-                            "backgroundColor": "#9FD8E3A0",
-                            "height": "8px",
-                            "margin": "sm",
                         },
                     ],
+                    "spacing": "sm",
+                    "paddingAll": "13px",
                 },
-                "body": {
-                    "type": "box",
-                    "layout": "vertical",
-                    "flex": 1,
-                    "contents": [
-                        {
-                            "type": "text",
-                            "text": msg,
-                            "color": "#8C8C8C",
-                            "size": "sm",
-                            "wrap": True,
-                        }
-                    ],
-                },
-                "styles": {"footer": {"separator": False}},
-            }
+            },
         ],
     }
 
-    return data
+    return flex_data
 
 
 # 主動推送訊息給使用者
@@ -272,6 +438,33 @@ def handle_message(event):
             # 處理其他不明訊息
             msg_list = process_message(
                 event.source.user_id, event.message.text)
+
+            if len(msg_list) <= 0 and event.message.text == "耍廢":
+                bar_data = [
+                    {"title": "集點券", "msg": "目前集點進度", "current": 15, "max": 20, "color": "#A75CB2"},
+                    {"title": "冥想", "msg": "目前進度", "current": 3, "max": 10, "color": "#0060D0"},
+                    {"title": "健身", "msg": "完成！", "current": 5, "max": 5, "color": "#A75C00"},
+                ]
+                # 示範多頁進度條
+                msg_list.append(
+                    FlexMessage(
+                        alt_text="hello",
+                        contents=FlexContainer.from_dict(progress_bar_ex(bar_data)),
+                    )
+                )
+                # 示範圖片
+                msg_list.append(
+                    FlexMessage(
+                        alt_text="hello",
+                        contents=FlexContainer.from_dict(
+                            image_carousel(
+                                "領導先走工作室",
+                                "一起耍廢",
+                                "https://developers-resource.landpress.line.me/fx/clip/clip10.jpg",
+                            )
+                        ),
+                    )
+                )
 
     if len(msg_list) > 0:
         with ApiClient(configuration) as api_client:
@@ -601,8 +794,8 @@ def handle_postback(event):
                 else:
                     reply_text = "請重試"
             except Exception as e:
-                    print(f"Error during request: {e}")
-                    reply_text = "請聯絡管理員"
+                print(f"Error during request: {e}")
+                reply_text = "請聯絡管理員"
             line_bot_api.reply_message_with_http_info(
                 ReplyMessageRequest(
                     reply_token=event.reply_token,
@@ -830,3 +1023,4 @@ def trigger_api():
 
 
 # ngrok http http://127.0.0.1:5000
+
