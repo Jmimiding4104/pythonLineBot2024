@@ -875,7 +875,7 @@ import random
 from flask_cors import CORS
 
 
-from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, lifespan
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
@@ -884,7 +884,6 @@ import json
 import requests
 from dotenv import load_dotenv
 from persistence import router as persistence_router
-#from fastapi.events import lifespan
 import persistence as db
 
 
@@ -897,6 +896,8 @@ load_dotenv()
 # --- 初始化 FastAPI 應用 ---
 appFast = FastAPI()
 
+# 掛載路由
+appFast.include_router(persistence_router)
 
 # CORS 支援
 appFast.add_middleware(
@@ -906,21 +907,6 @@ appFast.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# FastAPI 應用設定 lifespan 事件
-appFast = FastAPI(lifespan=lifespan)
-
-@lifespan
-async def lifespan_context(app: FastAPI):
-    """使用 lifespan 處理應用啟動與關閉"""
-    print("應用啟動中...")
-    await db.init_db()
-    print("FastAPI 啟動成功，資料庫初始化完成！")
-    yield
-    print("應用關閉中...")
-
-# 掛載路由
-appFast.include_router(persistence_router)
 
 
 # --- 測試用健康路由 ---

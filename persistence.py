@@ -123,7 +123,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 #from fastapi import FastAPI, HTTPException
 
 from fastapi import APIRouter, HTTPException
-from persistence_db import init_db, insert_data, query_data, update_data, delete_data
+#from persistence_db import init_db, insert_data, query_data, update_data, delete_data
 
 router = APIRouter()
 
