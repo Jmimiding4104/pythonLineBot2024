@@ -885,6 +885,8 @@ import requests
 from dotenv import load_dotenv
 from persistence import router as persistence_router
 import persistence as db
+import asyncio
+import uvicorn
 
 
 app = Flask(__name__)
@@ -894,7 +896,8 @@ CORS(app)
 load_dotenv()
 
 # --- 初始化 FastAPI 應用 ---
-appFast = FastAPI()
+# appFast = FastAPI()
+appFast = FastAPI(lifespan=None)  # Disables lifespan events explicitly
 
 # 掛載路由
 appFast.include_router(persistence_router)
@@ -907,6 +910,8 @@ appFast.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
 
 
 # --- 測試用健康路由 ---
@@ -1710,18 +1715,24 @@ def main():
 
 if __name__ == "__main__":
     main()  # 呼叫 main() 函式啟動應用
-'''
+
 
 # --- 主函式 ---
 def main():
     db.init_db()
     load_health_info("bot_health_info.json")
     print("FastAPI 啟動成功！")
+'''
+    
+async def main():
+    await db.init_db()  # Await the async function
+    load_health_info("bot_health_info.json")
+    print("FastAPI 啟動成功！")
+
 
 if __name__ == "__main__":
-    import uvicorn
-    main()
-    uvicorn.run(appFast, host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+    asyncio.run(main())
+#    uvicorn main:appFast --lifespan off
     
 
 
